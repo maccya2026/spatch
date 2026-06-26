@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>spatch - ホーム</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 pb-32">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center flex-wrap gap-2">
+            <h1 class="text-2xl font-bold tracking-wider">🚀 spatch</h1>
+            <div class="flex items-center gap-3 flex-wrap">
+                <div id="user-display" class="text-xs font-semibold bg-blue-700 px-3 py-2 rounded-lg"></div>
+                <button onclick="toggleRole()" id="role-switch-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-colors">🔄 モード切替</button>
+                <button onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">ログアウト</button>
+            </div>
+        </div>
+    </header>
+
+    <div id="map-section" class="container mx-auto px-6 mt-6">
+        <div id="map" class="w-full h-72 rounded-lg shadow-md border border-gray-200" style="position: relative; z-index: 1;"></div>
+    </div>
+
+    <main class="container mx-auto p-6 max-w-6xl flex flex-col md:flex-row gap-8">
+        
+        <div id="landlord-form-section" class="w-full md:w-1/3 bg-white p-6 rounded-lg shadow-md border border-gray-200 h-fit">
+            <h2 class="text-lg font-bold mb-4 text-gray-700 border-b pb-2">🏢 地主メニュー：新しい土地を貸す</h2>
+            <form id="space-form" onsubmit="createSpace(event)" class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">掲載タイトル</label>
+                    <input id="form-title" type="text" placeholder="例：豊田市駅前 ビル横の隙間" required class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">詳しい住所</label>
+                    <input id="form-address" type="text" placeholder="例：愛知県豊田市浄水町" required class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">広さ</label>
+                    <input id="form-size" type="text" placeholder="例：0.5坪" required class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">希望賃料</label>
+                    <input id="form-price" type="text" placeholder="例：月額 10,000円" required class="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">現地の写真（任意）</label>
+                    <input id="form-image" type="file" accept="image/*" class="w-full text-xs text-gray-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                </div>
+                <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg font-bold text-sm mt-2 shadow hover:bg-green-700 transition-colors">このスペースを市場に登録する</button>
+            </form>
+        </div>
+
+        <div class="flex-1">
+            <div id="player-search-section" class="bg-white p-4 rounded-lg shadow-sm mb-6 border border-gray-200 flex gap-2">
+                <input id="search-input" type="text" placeholder="設置したいエリアやキーワードを入力（例：豊田）" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="searchSpaces()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors">検索</button>
+            </div>
+            
+            <h2 id="list-title" class="text-xl font-bold mb-6 text-gray-700">現在、募集中の自販機設置スペース一覧</h2>
+            <div id="spaces-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
+        </div>
+    </main>
+
+    <div id="chat-box" class="hidden fixed bottom-0 right-6 w-80 bg-white shadow-2xl rounded-t-xl border border-gray-300 flex flex-col h-96" style="z-index: 9999;">
+        <div class="bg-blue-600 text-white p-3 rounded-t-xl flex justify-between items-center font-bold text-sm">
+            <span id="chat-title">家主とのチャット</span>
+            <button onclick="closeChat()" class="text-white hover:text-gray-200 text-lg">×</button>
+        </div>
+        <div id="chat-messages" class="flex-1 p-3 overflow-y-auto text-sm flex flex-col gap-2 bg-gray-50"></div>
+        <form onsubmit="sendMessage(event)" class="p-2 border-t border-gray-200 flex gap-1">
+            <input id="chat-input" type="text" placeholder="メッセージを入力..." required class="flex-1 px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="submit" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700">送信</button>
+        </form>
+    </div>
+
+    <script>
+        // 【本番環境】バックエンド（FastAPI）の接続先URLをRenderのサーバー住所に差し替え完了
+        const API_BASE_URL = "https://spatch-w30r.onrender.com";
+
+        let map;
+        let markers = [];
+        let currentActiveSpaceId = null;
+        
+        let currentUser = JSON.parse(localStorage.getItem('spatch_user'));
+
+        if (!currentUser) { window.location.href = 'login.html'; }
+
+        function applyScreenSeparation() {
+            const userDisplay = document.getElementById('user-display');
+            const roleBtn = document.getElementById('role-switch-btn');
+            const formSection = document.getElementById('landlord-form-section');
+            const searchSection = document.getElementById('player-search-section');
+            const listTitle = document.getElementById('list-title');
+
+            if (currentUser.role === 'landlord') {
+                userDisplay.innerText = `🟢 地主としてログイン中: ${currentUser.email}`;
+                roleBtn.innerText = "👤 プレイヤーモードに切替";
+                roleBtn.className = "bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-colors";
+                formSection.classList.remove('hidden');
+                searchSection.classList.add('hidden');
+                listTitle.innerText = "🏢 あなたが現在貸し出し募集中の土地一覧";
+            } else {
+                userDisplay.innerText = `🟢 プレイヤーとしてログイン中: ${currentUser.email}`;
+                roleBtn.innerText = "🏢 地主モードに切替";
+                roleBtn.className = "bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition-colors";
+                formSection.classList.add('hidden');
+                searchSection.classList.remove('hidden');
+                listTitle.innerText = "🔍 現在、市場で募集中の自販機設置スペース一覧";
+            }
+            if (map) { setTimeout(() => map.invalidateSize(), 200); }
+        }
+
+        async function toggleRole() {
+            const nextRole = currentUser.role === 'landlord' ? 'player' : 'landlord';
+            try {
+                const formData = new FormData();
+                formData.append('user_id', currentUser.user_id);
+                formData.append('new_role', nextRole);
+
+                const response = await fetch(`${API_BASE_URL}/api/users/switch-role`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    currentUser.role = result.role;
+                    localStorage.setItem('spatch_user', JSON.stringify(currentUser));
+                    applyScreenSeparation();
+                    await loadAllSpaces();
+                }
+            } catch (e) { alert('切り替えに失敗しました。'); }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('spatch_user');
+            window.location.href = 'login.html';
+        }
+
+        function initMap() {
+            try {
+                map = L.map('map').setView([35.1208, 137.1393], 11);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            } catch (e) { console.error(e); }
+        }
+
+        function displaySpaces(spaces) {
+            const container = document.getElementById('spaces-container');
+            container.innerHTML = '';
+            if (map) { markers.forEach(m => map.removeLayer(m)); markers = []; }
+
+            const filteredSpaces = currentUser.role === 'landlord'
+                ? spaces.filter(s => s.landlord_id === currentUser.user_id)
+                : spaces;
+
+            if (filteredSpaces.length === 0) {
+                container.innerHTML = currentUser.role === 'landlord'
+                    ? `<p class="text-gray-500 text-center py-8 w-full col-span-2">あなたが現在募集している土地はありません。</p>`
+                    : `<p class="text-gray-500 text-center py-8 w-full col-span-2">現在募集中のスペースはありません。</p>`;
+                return;
+            }
+
+            filteredSpaces.forEach(space => {
+                const isMySpace = currentUser && space.landlord_id === currentUser.user_id;
+
+                let actionButtonsHtml = '';
+
+                if (currentUser.role === 'landlord') {
+                    const btnText = space.image_url ? '🔄 写真を変更する' : '➕ 写真を追加する';
+                    actionButtonsHtml = `
+                        <label class="mt-1 block text-center w-full bg-gray-100 text-gray-700 border border-gray-300 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors cursor-pointer">
+                            ${btnText}
+                            <input type="file" accept="image/*" class="hidden" onchange="triggerImageUpload(${space.id}, this)">
+                        </label>
+                        <button onclick="deleteSpace(${space.id}, event)" class="mt-1 w-full bg-red-50 text-red-600 border border-red-200 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 hover:text-white transition-colors">
+                            ❌ この募集掲載を取り消す
+                        </button>
+                    `;
+                } else {
+                    if (isMySpace) {
+                        actionButtonsHtml = `
+                            <div class="w-full bg-gray-100 text-gray-500 text-center py-2 rounded-lg text-xs font-semibold border border-dashed">
+                                👀 あなたが地主として出店中のエリアです
+                            </div>
+                        `;
+                    } else {
+                        actionButtonsHtml = `
+                            <button onclick="openChat(${space.id}, '${space.title}')" class="w-full bg-blue-50 text-blue-600 border border-blue-200 py-2 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition-colors">
+                                💬 この物件について家主と交渉する
+                            </button>
+                        `;
+                    }
+                }
+
+                const imageHtml = space.image_url 
+                    ? `<img src="${space.image_url}" class="w-full h-40 object-cover rounded-lg mb-3 border border-gray-100 shadow-inner" alt="物件写真">` 
+                    : `<div class="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center text-xs text-gray-400 font-semibold">📸 写真なし</div>`;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow-md p-5 border border-gray-200 hover:shadow-lg transition-shadow flex flex-col justify-between';
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="inline-block text-xs font-semibold px-2 py-1 rounded bg-green-100 text-green-800">${space.status}</span>
+                            ${isMySpace ? '<span class="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded">あなたの投稿</span>' : ''}
+                        </div>
+                        ${imageHtml}
+                        <h3 class="text-base font-bold text-gray-900 mb-0.5">${space.title}</h3>
+                        <p class="text-xs text-gray-500 mb-3">📍 ${space.address}</p>
+                        <div class="flex justify-between text-xs text-gray-600 mb-4 bg-gray-50 p-2 rounded">
+                            <span>広さ: ${space.size_sqft}</span>
+                            <span class="font-bold text-blue-600">${space.price_monthly}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        ${actionButtonsHtml}
+                    </div>
+                `;
+                container.appendChild(card);
+
+                if (map && space.latitude && space.longitude) {
+                    const marker = L.marker([space.latitude, space.longitude]).addTo(map);
+                    marker.bindPopup(`<b>${space.title}</b><br>${space.price_monthly}`);
+                    markers.push(marker);
+                }
+            });
+            if (map && markers.length > 0) { map.fitBounds(new L.featureGroup(markers).getBounds().pad(0.1)); }
+        }
+
+        async function triggerImageUpload(spaceId, inputElement) {
+            const file = inputElement.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('landlord_id', currentUser.user_id);
+            formData.append('image', file);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/spaces/${spaceId}/update-image`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    alert(result.message);
+                    await loadAllSpaces();
+                } else {
+                    alert(result.detail);
+                }
+            } catch (e) {
+                alert('写真の追加中に通信エラーが起きました。');
+            }
+        }
+
+        async function deleteSpace(spaceId, event) {
+            event.stopPropagation();
+            if (!confirm('本当にこのスペースの募集を終了し、削除しますか？')) return;
+            try {
+                const formData = new FormData();
+                formData.append('landlord_id', currentUser.user_id);
+
+                const response = await fetch(`${API_BASE_URL}/api/spaces/${spaceId}`, {
+                    method: 'DELETE',
+                    body: formData
+                });
+                if (response.ok) { alert('削除しました。'); await loadAllSpaces(); }
+            } catch (e) { console.error(e); }
+        }
+
+        async function openChat(spaceId, title) {
+            currentActiveSpaceId = spaceId;
+            document.getElementById('chat-title').innerText = `💬 交渉中: ${title}`;
+            document.getElementById('chat-box').classList.remove('hidden');
+            await loadMessages();
+        }
+
+        function closeChat() { document.getElementById('chat-box').classList.add('hidden'); currentActiveSpaceId = null; }
+
+        async function loadMessages() {
+            if (!currentActiveSpaceId) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/messages/${currentActiveSpaceId}`);
+                const messages = await response.json();
+                const msgContainer = document.getElementById('chat-messages');
+                msgContainer.innerHTML = '';
+                messages.forEach(msg => {
+                    const msgDiv = document.createElement('div');
+                    if (currentUser && msg.sender_id === currentUser.user_id) {
+                        msgDiv.className = "bg-blue-500 text-white p-2 rounded-lg max-w-[80%] self-end shadow-sm text-xs";
+                    } else {
+                        msgDiv.className = "bg-white text-gray-800 p-2 rounded-lg max-w-[80%] self-start border border-gray-200 shadow-sm text-xs";
+                    }
+                    msgDiv.innerHTML = `<span class="text-[10px] opacity-70 block mb-0.5">${msg.sender_email}</span>${msg.text}`;
+                    msgContainer.appendChild(msgDiv);
+                });
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            } catch (e) { console.error(e); }
+        }
+
+        async function sendMessage(event) {
+            event.preventDefault();
+            const input = document.getElementById('chat-input');
+            try {
+                const formData = new FormData();
+                formData.append('space_id', currentActiveSpaceId);
+                formData.append('sender_id', currentUser.user_id);
+                formData.append('text', input.value);
+
+                const response = await fetch(`${API_BASE_URL}/api/messages`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) { input.value = ''; await loadMessages(); }
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadAllSpaces() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/spaces`);
+                const spaces = await response.json();
+                displaySpaces(spaces);
+            } catch (e) { console.error(e); }
+        }
+
+        async function searchSpaces() {
+            const keyword = document.getElementById('search-input').value;
+            if (!keyword) { loadAllSpaces(); return; }
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/spaces/search?keyword=${encodeURIComponent(keyword)}`);
+                const filteredSpaces = await response.json();
+                displaySpaces(filteredSpaces);
+            } catch (e) { console.error(e); }
+        }
+
+        async function createSpace(event) {
+            event.preventDefault();
+            const formData = new FormData();
+            formData.append('title', document.getElementById('form-title').value);
+            formData.append('address', document.getElementById('form-address').value);
+            formData.append('size_sqft', document.getElementById('form-size').value);
+            formData.append('price_monthly', document.getElementById('form-price').value);
+            formData.append('landlord_id', currentUser.user_id);
+            
+            const imageFile = document.getElementById('form-image').files[0];
+            if (imageFile) { formData.append('image', imageFile); }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/spaces`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (response.ok) {
+                    alert('新しいスペースを登録しました！');
+                    document.getElementById('space-form').reset();
+                    await loadAllSpaces();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        initMap();
+        applyScreenSeparation();
+        loadAllSpaces();
+    </script>
+</body>
+</html>
